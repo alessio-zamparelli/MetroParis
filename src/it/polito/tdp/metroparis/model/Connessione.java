@@ -2,6 +2,7 @@ package it.polito.tdp.metroparis.model;
 
 public class Connessione {
 
+	// per le regole di Object-Relational Mapping
 	private int idConnessione;
 	private Linea linea;
 	private Fermata stazP;
