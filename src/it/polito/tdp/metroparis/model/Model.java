@@ -8,6 +8,10 @@ import java.util.Map;
 
 import org.jgrapht.Graph;
 import org.jgrapht.Graphs;
+import org.jgrapht.event.ConnectedComponentTraversalEvent;
+import org.jgrapht.event.EdgeTraversalEvent;
+import org.jgrapht.event.TraversalListener;
+import org.jgrapht.event.VertexTraversalEvent;
 import org.jgrapht.graph.DefaultEdge;
 import org.jgrapht.graph.SimpleDirectedGraph;
 import org.jgrapht.traverse.BreadthFirstIterator;
@@ -17,6 +21,37 @@ import org.jgrapht.traverse.GraphIterator;
 import it.polito.tdp.metroparis.db.MetroDAO;
 
 public class Model {
+
+	private class EdgeTraverseGraphListener implements TraversalListener<Fermata, DefaultEdge> {
+		// creo una innerclass per compattare il codice
+		@Override
+		public void connectedComponentFinished(ConnectedComponentTraversalEvent arg0) {
+		}
+
+		@Override
+		public void connectedComponentStarted(ConnectedComponentTraversalEvent arg0) {
+		}
+
+		@Override
+		public void edgeTraversed(EdgeTraversalEvent<DefaultEdge> ev) {
+			Fermata sourceVertex = grafo.getEdgeSource(ev.getEdge()); // parent
+			Fermata targetVertex = grafo.getEdgeTarget(ev.getEdge()); // child
+			if (!backVisit.containsKey(targetVertex) && backVisit.containsKey(sourceVertex)) {
+				backVisit.put(targetVertex, sourceVertex);
+			} else if (!backVisit.containsKey(sourceVertex) && backVisit.containsKey(targetVertex)) {
+				// serve solo per grafi non orientati
+				backVisit.put(sourceVertex, targetVertex);
+			}
+		}
+
+		@Override
+		public void vertexFinished(VertexTraversalEvent<Fermata> arg0) {
+		}
+
+		@Override
+		public void vertexTraversed(VertexTraversalEvent<Fermata> arg0) {
+		}
+	}
 
 	private Graph<Fermata, DefaultEdge> grafo;
 	private List<Fermata> fermate;
@@ -81,7 +116,8 @@ public class Model {
 		GraphIterator<Fermata, DefaultEdge> it = new BreadthFirstIterator<>(this.grafo, source);
 //		GraphIterator<Fermata, DefaultEdge> it = new DepthFirstIterator<>(this.grafo, source);
 
-		it.addTraversalListener(new EdgeTraverseGraphListener(grafo, backVisit));
+		it.addTraversalListener(new Model.EdgeTraverseGraphListener());
+		// posso creare anche una classe anonima (si usa con pochi metodi, tipo comparator)
 		backVisit.put(source, null);
 
 		while (it.hasNext())
@@ -115,7 +151,7 @@ public class Model {
 		Fermata f = target;
 
 		while (f != null) {
-			percorso.add(0,f);
+			percorso.add(0, f);
 			System.out.println("considero la fermata: " + f.getNome());
 			f = backVisit.get(f);
 		}
