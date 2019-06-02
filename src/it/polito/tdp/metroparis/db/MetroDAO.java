@@ -10,6 +10,7 @@ import java.util.Map;
 
 import com.javadocmd.simplelatlng.LatLng;
 
+import it.polito.tdp.metroparis.model.ConnessioneVelocita;
 import it.polito.tdp.metroparis.model.Fermata;
 import it.polito.tdp.metroparis.model.Linea;
 
@@ -41,6 +42,40 @@ public class MetroDAO {
 
 		return fermate;
 	}
+	
+	public boolean esisteConnessione(Fermata partenza, Fermata arrivo) {
+		
+		String sql = "SELECT COUNT(*) AS cnt " + 
+				"FROM connessione " + 
+				"WHERE id_stazP=? " + 
+				"AND id_stazA=?" ;
+		
+		Connection conn = DBConnect.getConnection() ;
+		PreparedStatement st;
+		try {
+			st = conn.prepareStatement(sql);
+			st.setInt(1, partenza.getIdFermata());
+			st.setInt(2, arrivo.getIdFermata());
+
+			ResultSet rs = st.executeQuery() ;
+			
+			rs.next() ; // mi posiziono sulla prima (e unica) riga
+			
+			int numero = rs.getInt("cnt") ;
+			
+			conn.close();
+			
+			return (numero>0) ;
+			
+		} catch (SQLException e) {
+			// TODO Auto-generated catch block
+			e.printStackTrace();
+		}
+		
+		return false ;
+	}
+	
+	
 
 	public List<Linea> getAllLinee() {
 		final String sql = "SELECT id_linea, nome, velocita, intervallo FROM linea ORDER BY nome ASC";
@@ -69,62 +104,64 @@ public class MetroDAO {
 		return linee;
 	}
 
-	public boolean esisteConnessione(Fermata partenza, Fermata arrivo) {
-
-		String sql = "SELECT COUNT(*) AS cnt FROM connessione WHERE id_stazP=? AND id_stazA=?";
-		Connection conn = DBConnect.getConnection();
-		PreparedStatement st;
-		try {
-			st = conn.prepareStatement(sql);
-
-			st.setInt(1, partenza.getIdFermata());
-			st.setInt(2, arrivo.getIdFermata());
-
-			ResultSet rs = st.executeQuery();
-
-			rs.next();
-
-			int numero = rs.getInt(1);
-
-			conn.close();
-
-			return (numero > 0);
-
-		} catch (SQLException e) {
-			e.printStackTrace();
-		}
-		return false;
-
-	}
-
 	public List<Fermata> stazioniArrivo(Fermata partenza, Map<Integer, Fermata> idMap) {
+		String sql = "SELECT id_stazA " + 
+				"FROM connessione " + 
+				"WHERE id_stazP=?" ;
 
-		String sql = "SELECT id_stazA FROM connessione WHERE id_stazP=?";
-
-		Connection conn = DBConnect.getConnection();
-		PreparedStatement st;
-
+		Connection conn = DBConnect.getConnection() ;
 		try {
-			st = conn.prepareStatement(sql);
-
+			PreparedStatement st = conn.prepareStatement(sql) ;
 			st.setInt(1, partenza.getIdFermata());
-
-			ResultSet rs = st.executeQuery();
-
-			List<Fermata> result = new ArrayList<>();
-
-			// creo una stazione fittizia poiche non ho bisogno dell'oggetto vero per creare l'arco
-			while (rs.next())
-				result.add(idMap.get(rs.getInt("id_stazA")));
-
+			ResultSet rs = st.executeQuery() ;
+			
+			List<Fermata> result = new ArrayList<>() ;
+			
+			while(rs.next()) {
+				result.add(idMap.get(rs.getInt("id_stazA"))) ;
+			}
+			
 			conn.close();
-
-			return result;
-
+			return result ;
 		} catch (SQLException e) {
+			// TODO Auto-generated catch block
 			e.printStackTrace();
+			return null ;
 		}
-		return null;
+		
+	
 	}
+	
+	public List<ConnessioneVelocita> getConnessionieVelocita() {
+		String sql = "SELECT connessione.id_stazP, connessione.id_stazA, MAX(linea.velocita) AS velocita " + 
+				"FROM connessione, linea " + 
+				"WHERE connessione.id_linea=linea.id_linea " + 
+				"GROUP BY connessione.id_stazP, connessione.id_stazA" ;
+		
+		try {
+			Connection conn = DBConnect.getConnection() ;
+
+			PreparedStatement st = conn.prepareStatement(sql) ;
+			ResultSet res = st.executeQuery() ;
+			
+			List<ConnessioneVelocita> result = new ArrayList<>() ;
+			while(res.next()) {
+				ConnessioneVelocita item = new ConnessioneVelocita(
+						res.getInt("id_stazP"), 
+						res.getInt("id_stazA"), 
+						res.getDouble("velocita")) ;
+				result.add(item) ;
+			}
+			
+			conn.close();
+			
+			return result ;
+		} catch (SQLException e) {
+			// TODO Auto-generated catch block
+			e.printStackTrace();
+			return null ;
+		}
+	}
+
 
 }

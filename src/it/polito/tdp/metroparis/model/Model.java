@@ -7,140 +7,127 @@ import java.util.List;
 import java.util.Map;
 
 import org.jgrapht.Graph;
+import org.jgrapht.GraphPath;
 import org.jgrapht.Graphs;
+import org.jgrapht.alg.shortestpath.DijkstraShortestPath;
 import org.jgrapht.event.ConnectedComponentTraversalEvent;
 import org.jgrapht.event.EdgeTraversalEvent;
 import org.jgrapht.event.TraversalListener;
 import org.jgrapht.event.VertexTraversalEvent;
 import org.jgrapht.graph.DefaultEdge;
+import org.jgrapht.graph.DefaultWeightedEdge;
 import org.jgrapht.graph.SimpleDirectedGraph;
+import org.jgrapht.graph.SimpleDirectedWeightedGraph;
 import org.jgrapht.traverse.BreadthFirstIterator;
-//import org.jgrapht.traverse.DepthFirstIterator;
 import org.jgrapht.traverse.GraphIterator;
+
+import com.javadocmd.simplelatlng.LatLng;
+import com.javadocmd.simplelatlng.LatLngTool;
+import com.javadocmd.simplelatlng.util.LengthUnit;
 
 import it.polito.tdp.metroparis.db.MetroDAO;
 
 public class Model {
+	
+	private class EdgeTraversedGraphListener implements TraversalListener<Fermata, DefaultWeightedEdge> {
 
-	private class EdgeTraverseGraphListener implements TraversalListener<Fermata, DefaultEdge> {
-		// creo una innerclass per compattare il codice
 		@Override
-		public void connectedComponentFinished(ConnectedComponentTraversalEvent arg0) {
+		public void connectedComponentFinished(ConnectedComponentTraversalEvent e) {			
 		}
 
 		@Override
-		public void connectedComponentStarted(ConnectedComponentTraversalEvent arg0) {
+		public void connectedComponentStarted(ConnectedComponentTraversalEvent e) {
 		}
 
 		@Override
-		public void edgeTraversed(EdgeTraversalEvent<DefaultEdge> ev) {
-			Fermata sourceVertex = grafo.getEdgeSource(ev.getEdge()); // parent
-			Fermata targetVertex = grafo.getEdgeTarget(ev.getEdge()); // child
-			if (!backVisit.containsKey(targetVertex) && backVisit.containsKey(sourceVertex)) {
-				backVisit.put(targetVertex, sourceVertex);
-			} else if (!backVisit.containsKey(sourceVertex) && backVisit.containsKey(targetVertex)) {
-				// serve solo per grafi non orientati
-				backVisit.put(sourceVertex, targetVertex);
-			}
+		public void edgeTraversed(EdgeTraversalEvent<DefaultWeightedEdge> ev) {
+			Fermata sourceVertex = grafo.getEdgeSource(ev.getEdge()) ;
+			Fermata targetVertex = grafo.getEdgeTarget(ev.getEdge()) ;
+			
+			if( !backVisit.containsKey(targetVertex) && backVisit.containsKey(sourceVertex) ) {
+				backVisit.put(targetVertex, sourceVertex) ;
+			} else if(!backVisit.containsKey(sourceVertex) && backVisit.containsKey(targetVertex)) {
+				backVisit.put(sourceVertex, targetVertex) ;
+			}			
 		}
 
 		@Override
-		public void vertexFinished(VertexTraversalEvent<Fermata> arg0) {
+		public void vertexFinished(VertexTraversalEvent<Fermata> e) {			
 		}
 
 		@Override
-		public void vertexTraversed(VertexTraversalEvent<Fermata> arg0) {
+		public void vertexTraversed(VertexTraversalEvent<Fermata> e) {			
 		}
+		
 	}
 
-	private Graph<Fermata, DefaultEdge> grafo;
+	private Graph<Fermata, DefaultWeightedEdge> grafo;
 	private List<Fermata> fermate;
 	private Map<Integer, Fermata> fermateIdMap;
-	private Map<Fermata, Fermata> backVisit;
+	Map<Fermata, Fermata> backVisit;
 
-	/**
-	 * crea e popola il grafo
-	 */
 	public void creaGrafo() {
-		// creo il grafo
-		this.grafo = new SimpleDirectedGraph<>(DefaultEdge.class);
 
-		// aggiungo i vertici
+		// Crea l'oggetto grafo
+		this.grafo = new SimpleDirectedWeightedGraph<>(DefaultWeightedEdge.class);
+
+		// Aggiungi i vertici
 		MetroDAO dao = new MetroDAO();
 		this.fermate = dao.getAllFermate();
-		Graphs.addAllVertices(this.grafo, this.fermate);
 
-		// creo idMap
-		this.fermateIdMap = new HashMap<Integer, Fermata>();
+		// crea idMap
+		this.fermateIdMap = new HashMap<>();
 		for (Fermata f : this.fermate)
 			fermateIdMap.put(f.getIdFermata(), f);
 
-//		// aggiungi gli archi v1 - lenta a bestia
-//		for (Fermata partenza : this.grafo.vertexSet()) {
-//			for (Fermata arrivo : this.grafo.vertexSet()) {
-//
-//				if (dao.esisteConnessione(partenza, arrivo)) 
-//					this.grafo.addEdge(partenza, arrivo);
-//				
-//
-//			}
-//		}
+		Graphs.addAllVertices(this.grafo, this.fermate);
 
-		// aggiungi gli archi v2.1 - non funziona e mai funzionerà
-//		for (Fermata partenza : this.grafo.vertexSet()) {
-//			List<Fermata> arrivi = dao.stazioniArrivo(partenza);
-//
-//			for (Fermata arrivo : arrivi)
-//				this.grafo.addEdge(partenza, arrivo);
-//
-//		}
+		// Aggiungi gli archi
 
-		// aggiungi gli archi v2.2
 		for (Fermata partenza : this.grafo.vertexSet()) {
 			List<Fermata> arrivi = dao.stazioniArrivo(partenza, fermateIdMap);
 
 			for (Fermata arrivo : arrivi)
 				this.grafo.addEdge(partenza, arrivo);
-
+		}
+		
+		// Aggiungi i pesi agli archi
+		
+		List<ConnessioneVelocita> archipesati = dao.getConnessionieVelocita() ;
+		for(ConnessioneVelocita cp: archipesati) {
+			Fermata partenza = fermateIdMap.get(cp.getStazP()) ;
+			Fermata arrivo = fermateIdMap.get(cp.getStazA()) ;
+			double distanza = LatLngTool.distance(partenza.getCoords(), arrivo.getCoords(), LengthUnit.KILOMETER) ;
+			double peso = distanza / cp.getVelocita() * 3600; /* tempo in secondi */ 
+					
+			grafo.setEdgeWeight(partenza,  arrivo, peso);
+			
+			// OPPURE (aggiungo archi e vertici insieme): Graphs.addEdgeWithVertices(grafo, partenza, arrivo, peso) ;
 		}
 
-		// aggiungi gli archi v3
 
 	}
 
 	public List<Fermata> fermateRaggiungibili(Fermata source) {
 
-		List<Fermata> result = new ArrayList<>();
+		List<Fermata> result = new ArrayList<Fermata>();
 		backVisit = new HashMap<>();
 
-		GraphIterator<Fermata, DefaultEdge> it = new BreadthFirstIterator<>(this.grafo, source);
-//		GraphIterator<Fermata, DefaultEdge> it = new DepthFirstIterator<>(this.grafo, source);
+		GraphIterator<Fermata, DefaultWeightedEdge> it = new BreadthFirstIterator<>(this.grafo, source);
 
-		it.addTraversalListener(new Model.EdgeTraverseGraphListener());
-		// posso creare anche una classe anonima (si usa con pochi metodi, tipo comparator)
+		it.addTraversalListener(new Model.EdgeTraversedGraphListener());
+		
 		backVisit.put(source, null);
 
-		while (it.hasNext())
+		while (it.hasNext()) {
 			result.add(it.next());
+		}
 
 		return result;
 
 	}
 
-	public Graph<Fermata, DefaultEdge> getGrafo() {
-		return grafo;
-	}
-
-	public List<Fermata> getFermate() {
-		return fermate;
-	}
-
-	public Map<Integer, Fermata> getFermateIdMap() {
-		return fermateIdMap;
-	}
-
 	public List<Fermata> percorsoFinoA(Fermata target) {
-
 		if (!backVisit.containsKey(target)) {
 			// il target non è raggiungibile dalla source
 			return null;
@@ -151,13 +138,25 @@ public class Model {
 		Fermata f = target;
 
 		while (f != null) {
-			percorso.add(0, f);
-			System.out.println("considero la fermata: " + f.getNome());
+			percorso.add(0,f);
 			f = backVisit.get(f);
 		}
 
-		return percorso;
+		return percorso ;
+	}
 
+	public Graph<Fermata, DefaultWeightedEdge> getGrafo() {
+		return grafo;
+	}
+
+	public List<Fermata> getFermate() {
+		return fermate;
+	}
+	
+	public List<Fermata> trovaCamminoMinimo(Fermata partenza, Fermata arrivo) {
+		DijkstraShortestPath<Fermata, DefaultWeightedEdge> dijstra = new DijkstraShortestPath<>(this.grafo) ;
+		GraphPath<Fermata, DefaultWeightedEdge> path = dijstra.getPath(partenza, arrivo) ;
+		return path.getVertexList() ;
 	}
 
 }
